@@ -31,7 +31,7 @@ class MNISTClassifier(nn.Module):
             input_dim=1,  # Grayscale MNIST
             output_dim=10,  # 10 classes
             n=n,
-            hidden_dim=32,
+            hidden_dim=24,
             activation=torch.relu,
             solver_params=solver_params
         )
@@ -82,7 +82,7 @@ def train_mnist():
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
 
     # Training loop
-    n_epochs = 20
+    n_epochs = 15
     train_losses = []
     train_accs = []
     test_losses = []
@@ -337,3 +337,6 @@ def train_cifar10():
 
     return model
 
+
+
+train_mnist()
