@@ -29,7 +29,7 @@ my_seeded_rng = np.random.default_rng(seed=100)
 
 
 K_P = 0
-K_I = 25
+K_I = 125
 
 def norm(x):
     return sys.normalize(x, key='X')
@@ -134,7 +134,7 @@ N_CONTROLLER = 1 * N_PLANT
 T_sim = 1000
 
 
-plant = FRNN(nx_orig=nx, nu=nu, nx_ext=N_PLANT, nonlin=torch.nn.Tanh)
+plant = FRNN(nx_orig=nx, nu=nu, nx_ext=N_PLANT, nonlin=torch.nn.LeakyReLU)
 plant.load_state_dict(torch.load('trained_sysid_dx_two_tank.pth'))
 plant.eval()
 
@@ -146,7 +146,7 @@ C_s = plant.C.weight.detach().numpy()
 C_s = C_s[1:ny+ 1, :N_PLANT]  
 
 # True system:
-FRNN_s = FRNN_NumPy(W_s, B_s, C_s, act_fn='tanh')
+FRNN_s = FRNN_NumPy(W_s, B_s, C_s, act_fn='leaky_relu')
 
 
 

@@ -1,4 +1,5 @@
 from neuromancer.psl.nonautonomous import TwoTank
+from neuromancer.psl.signals import step
 from neuromancer.dataset import DictDataset
 from neuromancer.system import Node, System
 from neuromancer.modules import blocks
@@ -13,6 +14,7 @@ import torch
 import torch.optim as optim
 # create dataloaders
 from torch.utils.data import DataLoader
+import numpy as np
 
 import matplotlib.pyplot as plt
 from FRNN import FRNN, StateLifter
@@ -28,28 +30,46 @@ nx = sys.nx
 nu = sys.nu
 ny = sys.ny
 
+# Switch inputs roughly every SWITCH_INTERVAL steps, regardless of how long a
+# window we simulate, so the excitation density stays constant as WINDOW_LEN
+# changes (TwoTank's default get_U only switches every 100 steps).
+SWITCH_INTERVAL = 6
+
+def make_u(nsim):
+    randsteps = max(1, nsim // SWITCH_INTERVAL)
+    return step(nsim=nsim + 1, d=nu, min=0., max=0.4, randsteps=randsteps, rng=sys.rng)
+
+# Rollout horizon for training windows. Previously windows were only 10 steps
+# (chopped from one 1000-step trace), but the model is evaluated/used as a
+# continuous ~1000-step open-loop rollout downstream. Training on 10-step
+# windows let it fit short-horizon prediction well while drifting badly over
+# long open-loop rollouts (errors compound through the tank coupling). Longer
+# windows force the model to be accurate/stable over a horizon closer to how
+# it's actually used.
+WINDOW_LEN = 100
+N_WINDOWS = 100
+
+def simulate_windows(n_windows, window_len):
+    sims = [sys.simulate(nsim=window_len, U=make_u(window_len)) for _ in range(n_windows)]
+    return {k: np.stack([s[k] for s in sims]) for k in sims[0]}
+
 # Pre-lift initial condition in data prep
 lifter = StateLifter(nx_orig=sys.nx, nx_ext=N_EXT, learned=False)  # or learned=True
-dx = FRNN(nx_orig=sys.nx, nu=sys.nu, nx_ext=N_EXT, nonlin=torch.nn.Tanh)
+dx = FRNN(nx_orig=sys.nx, nu=sys.nu, nx_ext=N_EXT, nonlin=torch.nn.LeakyReLU)
 
 
 
-train_data, dev_data, test_data = [sys.simulate(nsim=1000) for i in range(3)]
+train_data, dev_data, test_data = [simulate_windows(N_WINDOWS, WINDOW_LEN) for i in range(3)]
 train_data, dev_data, test_data = [sys.normalize(d) for d in [train_data, dev_data, test_data]]
 
 
 for d in [train_data, dev_data]:
-    d['X'] = d['X'].reshape(100, 10, nx)
-    d['U'] = d['U'].reshape(100, 10, nu)
-    d['Y'] = d['Y'].reshape(100, 10, ny)
-
-    d['x0'] = d['X'][:, 0:1, :] 
-    d['Time'] = d['Time'].reshape(100, -1)
+    d['x0'] = d['X'][:, 0:1, :]
 
 
 
 train_dataset, dev_dataset, = [DictDataset(d, name=n) for d, n in zip([train_data, dev_data], ['train', 'dev'])]
-train_loader, dev_loader = [DataLoader(d, batch_size=100, collate_fn=d.collate_fn, shuffle=True)
+train_loader, dev_loader = [DataLoader(d, batch_size=N_WINDOWS, collate_fn=d.collate_fn, shuffle=True)
                             for d in [train_dataset, dev_dataset]]
 
 
@@ -124,7 +144,7 @@ print("Model weights successfully saved to 'trained_sysid_dx.pth'")
 
 
 
-test_data = sys.normalize(sys.simulate(nsim=1000))
+test_data = sys.normalize(sys.simulate(nsim=1000, U=make_u(1000)))
 test_data['X'] = test_data['X'].reshape(1, *test_data['X'].shape)  # (1, 1000, 3)
 test_data['U'] = test_data['U'].reshape(1, *test_data['U'].shape)  # (1, 1000, 3)
 

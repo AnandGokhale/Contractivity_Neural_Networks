@@ -31,9 +31,11 @@ class FRNN_NumPy:
         z = self.W @ x + self.B @ u
         if self.act_fn == 'relu':
             activation = np.maximum(0, z)
+        elif self.act_fn == 'leaky_relu':
+            activation = np.where(z > 0, z, 0.01 * z)  # matches torch.nn.LeakyReLU default slope
         else:
             activation = np.tanh(z)
-            
+
         return -x + activation  # dx/dt
 
     def get_output(self, x):
