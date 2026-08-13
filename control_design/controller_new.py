@@ -215,7 +215,17 @@ mpl.rcParams.update({
     "xtick.labelsize": 10,
     "ytick.labelsize": 10,
     "lines.linewidth": 2,
+    "pdf.fonttype": 42,             # embed as Type 42 (TrueType), avoids Type 3 font rejection
+    "ps.fonttype": 42,
 })
+
+mpl.rcParams.update({"text.usetex": True, "font.family": "serif", 
+                     "font.serif": ["Computer Modern Roman"] })
+
+
+
+
+
 
 # normalize the reference values for plotting
 if(ny == 1):
